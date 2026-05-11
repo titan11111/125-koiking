@@ -530,6 +530,9 @@ function unlockWebAudio() {
 });
 function playTone(freq, type, duration, vol = 0.15, detune = 0) {
     try {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') return;
+
         const ac  = getAudio();
         const osc = ac.createOscillator();
         const gain= ac.createGain();
@@ -828,7 +831,6 @@ class Koi {
                 if (alpha <= 0) return;
                 ctx.save();
                 ctx.globalAlpha = alpha;
-                ctx.filter = 'blur(2px)';
                 ctx.translate(p.x, p.y);
                 ctx.rotate(this.tilt);
                 const rect = this.getSpriteRect(this.frameIndex);
@@ -1318,8 +1320,10 @@ function drawBackground() {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // Waterfall streaks
-    waterLines.forEach(wl => { wl.update(); wl.draw(); });
+    // Waterfall streaks（startGame 前のループでも安全に）
+    if (waterLines) {
+        waterLines.forEach(wl => { wl.update(); wl.draw(); });
+    }
 
     // Mist at bottom
     const mist = ctx.createLinearGradient(0, H*0.75, 0, H);
@@ -1485,12 +1489,11 @@ function pointerClientX(e) {
 }
 let canvasPointerActive = false;
 canvas.addEventListener('pointerdown', e => {
-    e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     canvasPointerActive = true;
     unlockWebAudio();
     setTarget(pointerClientX(e));
-}, { passive: false });
+}, { passive: true });
 canvas.addEventListener('pointermove', e => {
     if (e.pointerType === 'mouse') {
         setTarget(pointerClientX(e));
@@ -1519,6 +1522,8 @@ function updateHUD() {
    ════════════════════════════════ */
 function loop() {
     requestAnimationFrame(loop);
+
+    try {
     frame++;
 
     drawBackground();
@@ -1636,6 +1641,9 @@ function loop() {
     drawDragonFlash();
     drawDragonText();
     drawNearMissText();
+    } catch (e) {
+        console.warn('Game loop error:', e);
+    }
 }
 
 // ── Boot ──
@@ -1656,7 +1664,9 @@ document.addEventListener('touchend', e => {
     if (now - lastTouchEnd <= 300) e.preventDefault();
     lastTouchEnd = now;
 }, false);
-document.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
+/* iOS Safari: document 全体の touchmove preventDefault が pointer 系と競合することがあるため無効化。
+ * スクロール抑制は CSS（touch-action / overflow）で対応済み。 */
+// document.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
 
 loop();
 </script>
