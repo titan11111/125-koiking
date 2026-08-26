@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="140" viewBox="0 0 240 140">
+  <defs>
+    <linearGradient id="sasaA" x1="8%" y1="70%" x2="92%" y2="18%">
+      <stop offset="0%" stop-color="#2e6b24"/>
+      <stop offset="38%" stop-color="#5ea332"/>
+      <stop offset="72%" stop-color="#b7d96a"/>
+      <stop offset="100%" stop-color="#e8f2b0"/>
+    </linearGradient>
+    <linearGradient id="sasaB" x1="12%" y1="80%" x2="88%" y2="10%">
+      <stop offset="0%" stop-color="#1f4f1c"/>
+      <stop offset="42%" stop-color="#4c922c"/>
+      <stop offset="100%" stop-color="#c5de74"/>
+    </linearGradient>
+    <linearGradient id="sasaC" x1="10%" y1="30%" x2="90%" y2="80%">
+      <stop offset="0%" stop-color="#245820"/>
+      <stop offset="50%" stop-color="#6aae38"/>
+      <stop offset="100%" stop-color="#d4e88a"/>
+    </linearGradient>
+    <linearGradient id="twig" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6b4a22"/>
+      <stop offset="100%" stop-color="#3d2a12"/>
+    </linearGradient>
+  </defs>
+  <path d="M18 86 C40 84 78 80 118 78" fill="none" stroke="url(#twig)" stroke-width="3.2" stroke-linecap="round"/>
+  <ellipse cx="22" cy="86" rx="4.2" ry="3.1" fill="#4a3318"/>
+
+  <!-- lower leaf -->
+  <g transform="translate(34 78) rotate(18)">
+    <path d="M0 6 C8 2 28 -8 62 -10 C88 -12 112 -2 122 4 C126 6 124 11 116 14 C90 22 52 24 22 20 C8 18 1 12 0 6Z" fill="url(#sasaB)"/>
+    <path d="M6 8 C34 0 72 -2 116 6" fill="none" stroke="#1d4a18" stroke-width="0.85" stroke-linecap="round"/>
+    <g fill="none" stroke="#2f6a22" stroke-width="0.35" opacity="0.7">
+      <path d="M18 6 C36 2 58 2 78 6"/>
+      <path d="M20 11 C40 8 62 8 82 12"/>
+      <path d="M16 4 C32 -1 54 -2 74 2"/>
+      <path d="M24 13 C46 12 68 13 88 16"/>
+    </g>
+    <path d="M118 5 C121 6 120 9 116 10" fill="#dce89a"/>
+  </g>
+
+  <!-- center leaf -->
+  <g transform="translate(46 70) rotate(-8)">
+    <path d="M0 7 C12 1 38 -12 78 -14 C112 -16 142 -4 154 4 C158 7 155 13 145 16 C112 26 64 28 26 22 C10 19 1 13 0 7Z" fill="url(#sasaA)"/>
+    <path d="M8 9 C48 -2 96 -4 146 8" fill="none" stroke="#163d12" stroke-width="1" stroke-linecap="round"/>
+    <g fill="none" stroke="#2a621c" stroke-width="0.4" opacity="0.75">
+      <path d="M22 5 C52 -2 86 -2 118 4"/>
+      <path d="M24 12 C56 8 92 8 124 14"/>
+      <path d="M20 3 C48 -6 82 -7 114 0"/>
+      <path d="M28 15 C60 14 96 15 128 18"/>
+      <path d="M36 6 C64 2 94 3 122 8"/>
+    </g>
+    <path d="M150 5 C154 6 153 10 147 12" fill="#eef6c4"/>
+  </g>
+
+  <!-- upper leaf -->
+  <g transform="translate(40 62) rotate(-32)">
+    <path d="M0 5 C10 0 32 -11 66 -12 C92 -13 114 -4 124 2 C128 4 126 9 118 12 C94 20 56 20 24 16 C10 14 1 10 0 5Z" fill="url(#sasaC)"/>
+    <path d="M6 7 C36 -2 74 -2 118 5" fill="none" stroke="#1a4414" stroke-width="0.8" stroke-linecap="round"/>
+    <g fill="none" stroke="#2d681e" stroke-width="0.35" opacity="0.7">
+      <path d="M18 4 C40 0 66 0 90 5"/>
+      <path d="M20 10 C44 8 70 8 94 12"/>
+      <path d="M16 2 C36 -3 62 -4 86 1"/>
+    </g>
+  </g>
+</svg>

@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="鯉の滝登り">
     <meta name="theme-color" content="#001a22">
     <title>鯉の滝登り：龍への道 — スプライト版</title>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&family=Zen+Antique&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:,">
     <style>
         *, *::before, *::after {
             box-sizing: border-box;
@@ -15,7 +16,12 @@
             padding: 0;
             touch-action: none;
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-user-drag: none;
         }
+        ::selection { background: transparent; color: inherit; }
         html {
             overflow: hidden;
             width: 100%;
@@ -33,31 +39,117 @@
             position: fixed;
             overscroll-behavior: none;
             background: #001a22;
-            font-family: 'Zen Antique', serif;
+            font-family: "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Yu Mincho", "YuMincho", "MS PMincho", serif;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
             -webkit-touch-callout: none;
-            padding-top: env(safe-area-inset-top, 0);
-            padding-bottom: env(safe-area-inset-bottom, 0);
-            padding-left: env(safe-area-inset-left, 0);
-            padding-right: env(safe-area-inset-right, 0);
         }
-        canvas {
+        body.start-idle #ui-layer {
+            opacity: 0;
+            visibility: hidden;
+        }
+        #game-shell {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            height: 100dvh;
+            display: grid;
+            grid-template-rows: 75% 25%;
+            z-index: 0;
+            background: #001a22;
+        }
+        #game-stage {
+            position: relative;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #screen-wrap {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+        #water-gl,
+        canvas#c {
             display: block;
             width: 100%;
             height: 100%;
-            position: fixed;
+            position: absolute;
             inset: 0;
-            z-index: 0;
+            pointer-events: none;
+        }
+        #water-gl { z-index: 0; }
+        canvas#c {
+            z-index: 1;
+            background: transparent;
+            pointer-events: auto;
+        }
+        #control-deck {
+            position: relative;
+            z-index: 4;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px max(12px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+            background:
+                linear-gradient(180deg, rgba(18, 12, 8, .92), rgba(8, 6, 4, .96)),
+                #120c08;
+            border-top: 1px solid #6e5218;
+            box-shadow: inset 0 1px 0 rgba(232, 201, 160, .2);
+        }
+        .deck-hint {
+            flex: 1;
+            min-width: 0;
+            margin: 0;
+            text-align: center;
+            font-size: .68rem;
+            letter-spacing: .14em;
+            color: #e8c9a0;
+            line-height: 1.45;
+            pointer-events: none;
+        }
+        .deck-btn,
+        #mute-btn {
+            flex: 0 0 56px;
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            min-height: 56px;
+            border-radius: 2px;
+            border: 1px solid #e8c9a0;
+            background: linear-gradient(180deg, #3a2418, #1a100c);
+            color: #f6e6c8;
+            font-family: inherit;
+            font-size: 1.05rem;
+            letter-spacing: .12em;
+            cursor: pointer;
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-appearance: none;
+            appearance: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform .08s ease, opacity .08s ease;
+        }
+        .deck-btn:active,
+        .deck-btn.is-pressed,
+        #mute-btn:active,
+        #mute-btn.is-pressed {
+            transform: scale(0.92);
+            opacity: 0.88;
         }
 
         /* ── UI Layer ── */
         #ui-layer {
-            position: fixed; inset: 0;
+            position: absolute; inset: 0;
             z-index: 2;
             pointer-events: none;
-            padding: calc(16px + env(safe-area-inset-top, 0)) calc(16px + env(safe-area-inset-right, 0)) calc(16px + env(safe-area-inset-bottom, 0)) calc(16px + env(safe-area-inset-left, 0));
+            padding: calc(10px + env(safe-area-inset-top, 0)) 12px 10px;
             color: #fff;
             text-shadow: 0 2px 6px rgba(0,0,0,.8);
         }
@@ -134,48 +226,236 @@
             transition: width .3s;
         }
 
-        /* ── Overlay Screens ── */
+        /* ── Overlay Screens（和風・刹那） ── */
         .overlay {
             position: fixed; inset: 0;
             z-index: 5;
             display: flex; align-items: center; justify-content: center;
-            background: rgba(0,0,0,.65);
-            backdrop-filter: blur(4px);
+            padding: calc(10px + env(safe-area-inset-top, 0)) 12px calc(10px + env(safe-area-inset-bottom, 0));
+            background: rgba(0,0,0,.72);
             pointer-events: auto;
+        }
+        .overlay-title {
+            align-items: stretch;
+            justify-content: stretch;
+            padding: 0;
+            background:
+                radial-gradient(ellipse at 72% 38%, rgba(255, 210, 120, .08) 0%, transparent 34%),
+                linear-gradient(180deg, rgba(2, 8, 16, .22) 0%, rgba(0, 0, 0, .04) 38%, rgba(0, 4, 10, .55) 100%);
+        }
+        .setsuna {
+            position: relative;
+            flex: 1;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .setsuna-flash {
+            position: absolute;
+            left: -10%;
+            top: 38%;
+            width: 120%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, rgba(255, 228, 160, .0) 10%, rgba(255, 236, 190, .85) 48%, rgba(255, 180, 80, .35) 62%, transparent);
+            transform: rotate(-18deg);
+            box-shadow: 0 0 16px rgba(255, 210, 120, .45);
+            pointer-events: none;
+            animation: setsuna-slash 2.8s ease-in-out infinite;
+        }
+        @keyframes setsuna-slash {
+            0%, 100% { opacity: .28; }
+            46% { opacity: 1; }
+            54% { opacity: .55; }
+        }
+        .setsuna-ink {
+            position: absolute;
+            left: -8%;
+            bottom: 8%;
+            width: 46%;
+            height: 38%;
+            background:
+                radial-gradient(ellipse at 40% 60%, rgba(8, 4, 2, .42) 0%, transparent 68%),
+                radial-gradient(ellipse at 70% 80%, rgba(90, 16, 12, .22) 0%, transparent 55%);
+            pointer-events: none;
+        }
+        .setsuna-stamp {
+            position: absolute;
+            right: calc(18px + env(safe-area-inset-right, 0));
+            bottom: calc(92px + env(safe-area-inset-bottom, 0));
+            width: 42px;
+            height: 42px;
+            border: 2px solid #c4452f;
+            color: #c4452f;
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 0;
+            transform: rotate(-12deg);
+            opacity: .82;
+            pointer-events: none;
+        }
+        .setsuna-word {
+            position: absolute;
+            top: calc(14px + env(safe-area-inset-top, 0));
+            right: calc(16px + env(safe-area-inset-right, 0));
+            writing-mode: vertical-rl;
+            font-size: .7rem;
+            letter-spacing: .55em;
+            color: rgba(232, 196, 110, .72);
+        }
+        .setsuna-title {
+            position: absolute;
+            left: calc(18px + env(safe-area-inset-left, 0));
+            top: 16%;
+            writing-mode: vertical-rl;
+            font-size: clamp(2.1rem, 11vw, 3.3rem);
+            font-weight: 700;
+            letter-spacing: .28em;
+            line-height: 1;
+            color: #f6e3a6;
+            text-shadow: 0 2px 0 #2a1a08, 0 0 28px rgba(255, 200, 90, .28);
+            margin: 0;
+        }
+        .setsuna-leap {
+            position: absolute;
+            right: 2%;
+            top: 24%;
+            width: min(248px, 68vw);
+            height: auto;
+            overflow: visible;
+        }
+        .setsuna-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(118px + env(safe-area-inset-bottom, 0));
+            text-align: center;
+            font-size: clamp(.95rem, 3.6vw, 1.15rem);
+            letter-spacing: .42em;
+            text-indent: .42em;
+            color: #f0d78a;
+            margin: 0;
+            text-shadow: 0 2px 10px rgba(0,0,0,.7);
+        }
+        .setsuna-note {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(76px + env(safe-area-inset-bottom, 0));
+            text-align: center;
+            font-size: .68rem;
+            letter-spacing: .18em;
+            color: rgba(230, 220, 200, .7);
+            margin: 0;
+        }
+        .setsuna .btn {
+            position: absolute;
+            left: 50%;
+            bottom: calc(12px + env(safe-area-inset-bottom, 0));
+            transform: translateX(-50%);
+            pointer-events: auto;
+            z-index: 4;
+        }
+        .setsuna .btn:hover { transform: translateX(-50%) scale(1.03); }
+        .setsuna .btn:active,
+        .setsuna .btn.is-pressed { transform: translateX(-50%) scale(0.92); }
+        .setsuna-petal {
+            position: absolute;
+            width: 9px;
+            height: 7px;
+            background: radial-gradient(circle at 30% 30%, #ffd0de, #e8899a);
+            border-radius: 70% 10% 70% 10%;
+            opacity: .45;
+            pointer-events: none;
+            animation: setsuna-fall 7.5s linear infinite;
+        }
+        .setsuna-petal:nth-child(1) { left: 18%; animation-delay: -1s; animation-duration: 8.2s; }
+        .setsuna-petal:nth-child(2) { left: 42%; animation-delay: -3.4s; animation-duration: 6.6s; }
+        .setsuna-petal:nth-child(3) { left: 63%; animation-delay: -5.1s; animation-duration: 7.8s; }
+        .setsuna-petal:nth-child(4) { left: 81%; animation-delay: -2.2s; animation-duration: 9s; }
+        .setsuna-petal:nth-child(5) { left: 28%; animation-delay: -6s; animation-duration: 7.1s; }
+        @keyframes setsuna-fall {
+            0% { top: -8%; transform: rotate(0deg); opacity: 0; }
+            12% { opacity: .5; }
+            100% { top: 108%; transform: rotate(220deg); opacity: 0; }
+        }
+        @media (max-height: 700px) {
+            .setsuna-title { font-size: 2rem; top: 12%; }
+            .setsuna-leap { width: min(188px, 52vw); top: 22%; right: 1%; }
+            .setsuna-line { bottom: calc(104px + env(safe-area-inset-bottom, 0)); font-size: .9rem; }
+            .setsuna-stamp { bottom: calc(82px + env(safe-area-inset-bottom, 0)); width: 34px; height: 34px; font-size: .95rem; }
+        }
+        @media (max-width: 380px) {
+            .setsuna-title { font-size: 1.85rem; letter-spacing: .22em; }
+            .setsuna-leap { width: min(168px, 50vw); top: 20%; right: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .setsuna-petal, .setsuna-flash { animation: none; }
         }
         .card {
-            background: linear-gradient(160deg, rgba(0,30,50,.95), rgba(0,10,20,.98));
-            border: 1px solid rgba(255,215,0,.4);
-            border-radius: 20px;
-            padding: 2.2rem 2.5rem;
+            position: relative;
+            background:
+                repeating-linear-gradient(90deg, rgba(255,236,200,.03) 0 1px, transparent 1px 7px),
+                linear-gradient(165deg, #24343c 0%, #10181c 48%, #1a1210 100%);
+            border: 1px solid #8a6a28;
+            border-radius: 2px;
+            padding: 1.55rem 1.4rem 1.35rem;
             text-align: center;
-            width: min(420px, 92vw);
-            box-shadow: 0 0 60px rgba(0,100,255,.25), inset 0 0 30px rgba(0,50,80,.4);
+            width: min(400px, 92vw);
+            max-height: calc(100dvh - 28px);
+            overflow: hidden;
+            box-shadow:
+                0 0 0 3px #120c08,
+                0 0 0 4px #c9a227,
+                0 0 0 6px #120c08,
+                0 0 0 7px #6e5218,
+                0 16px 36px rgba(0,0,0,.55);
         }
-        .card h1 { font-family: 'Noto Serif JP', serif; font-size: 2.4rem; color: #ffd700; margin-bottom: .6rem; }
-        .card h2 { font-family: 'Noto Serif JP', serif; font-size: 2rem; margin-bottom: .6rem; }
-        .card p  { font-size: .95rem; line-height: 1.9; opacity: .9; margin-bottom: .4rem; }
-        .card .sub { font-size: .8rem; opacity: .6; margin-bottom: 1.2rem; }
+        .card h2 {
+            font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+            font-size: 1.7rem;
+            margin-bottom: .55rem;
+            letter-spacing: .12em;
+        }
+        .card p  { font-size: .88rem; line-height: 1.75; opacity: .92; margin-bottom: .35rem; color: #e8e0d0; }
+        .card .sub { font-size: .75rem; opacity: .68; margin-bottom: 1rem; letter-spacing: .04em; }
         .btn {
-            display: inline-block;
-            background: linear-gradient(to bottom, #d4af37, #8b6914);
-            color: #1a1a1a;
-            padding: 10px 30px;
-            border-radius: 30px;
-            font-family: 'Zen Antique', serif;
-            font-size: 1rem;
-            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 56px;
+            min-width: 210px;
+            background: linear-gradient(180deg, #c45c48, #8a2418);
+            color: #f6e6c8;
+            padding: 10px 28px;
+            border-radius: 2px;
+            font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: .32em;
+            text-indent: .32em;
             cursor: pointer;
-            border: none;
-            margin-top: 12px;
-            transition: transform .15s, box-shadow .15s;
-            box-shadow: 0 4px 15px rgba(212,175,55,.4);
+            border: 1px solid #e8c9a0;
+            margin-top: 4px;
+            transition: transform .08s ease, filter .08s ease;
+            box-shadow: inset 0 1px 0 rgba(255,220,180,.35), 0 4px 0 #5a120c;
             pointer-events: auto;
+            touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
+            -webkit-appearance: none;
+            appearance: none;
         }
-        .btn:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(212,175,55,.6); }
-        .btn:active { transform: scale(.97); }
-        .hidden { display: none !important; }
+        .btn:hover { transform: scale(1.03); filter: brightness(1.08); }
+        .btn:active, .btn.is-pressed { transform: scale(0.92); opacity: 0.88; }
+        @media (max-height: 700px) {
+            .card { padding: 1.05rem 1.05rem 1rem; }
+            .btn { min-height: 52px; min-width: 180px; font-size: .95rem; }
+        }
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none !important;
+        }
         #score-badge {
             display: inline-block;
             background: rgba(255,215,0,.12);
@@ -187,20 +467,67 @@
             color: #ffd700;
         }
 
+        /* ── 跳ねボタン（操作盤・常時 48px以上） ── */
+        #hane-btn {
+            position: relative;
+            z-index: 3;
+            right: auto;
+            bottom: auto;
+            flex: 0 0 64px;
+            width: 64px;
+            height: 64px;
+            min-width: 56px;
+            min-height: 56px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,215,0,.55);
+            background: radial-gradient(circle at 50% 35%, rgba(255,215,0,.30), rgba(0,40,60,.72));
+            color: #ffe98a;
+            font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+            font-size: 1.35rem;
+            font-weight: bold;
+            line-height: 1;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+            pointer-events: auto;
+            cursor: pointer;
+            user-select: none;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-appearance: none;
+            appearance: none;
+            box-shadow: 0 0 22px rgba(255,215,0,.35), inset 0 0 18px rgba(255,215,0,.15);
+            transition: transform .08s ease, opacity .08s ease, box-shadow .08s ease;
+            text-shadow: 0 2px 6px rgba(0,0,0,.8);
+        }
+        #hane-btn small { font-size: .45rem; opacity: .75; letter-spacing: .04em; }
+        #hane-btn:active,
+        #hane-btn.is-pressed { transform: scale(.92); }
+        #hane-btn.cool {
+            opacity: .38;
+            border-color: rgba(255,255,255,.25);
+            box-shadow: none;
+        }
+        #hane-btn.free {
+            border-color: #fff4a3;
+            box-shadow: 0 0 32px rgba(255,215,0,.85), inset 0 0 22px rgba(255,215,0,.35);
+        }
+
         /* ── Difficulty Badge ── */
         #diff-badge {
-            position: fixed;
+            position: absolute;
             z-index: 2;
-            top: calc(16px + env(safe-area-inset-top, 0));
+            top: calc(52px + env(safe-area-inset-top, 0));
             left: 50%;
             transform: translateX(-50%);
-            font-size: .75rem;
-            padding: 3px 14px;
+            font-size: .8rem;
+            padding: 4px 16px;
             border-radius: 99px;
             border: 1px solid currentColor;
+            background: rgba(0,0,0,.35);
+            backdrop-filter: blur(2px);
             pointer-events: none;
             transition: color .5s, border-color .5s;
             color: #7df9ff;
+            text-shadow: 0 2px 6px rgba(0,0,0,.9);
         }
     </style>
     <meta property="og:title" content="鯉の滝登り：龍への道 — スプライト版">
@@ -209,39 +536,36 @@
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary">
 </head>
-<body>
+<body class="start-idle">
 
-<!-- HUD -->
-<div id="ui-layer">
-    <div id="hud-top">
-        <div id="hud-left">
-            <div>進捗：<span id="dist-ui">0</span> m / 100 m</div>
-            <div style="font-size:.8rem;opacity:.7;">最高記録：<span id="best-ui">0</span> m</div>
-        </div>
-        <div id="energy-wrap">
-            <div id="energy-label">体力</div>
-            <div id="energy-bar"><div id="energy-fill" style="width:100%"></div></div>
-
-            <div id="dragon-label">龍気</div>
-            <div id="dragon-bar"><div id="dragon-fill" style="width:0%"></div></div>
-        </div>
-    </div>
-    <div id="diff-badge">準備中</div>
-    <div id="progress-wrap">
-        <div style="font-size:.75rem;opacity:.7;">龍門まで</div>
-        <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
-    </div>
-</div>
-
-<!-- Screens -->
-<div id="start-screen" class="overlay">
-    <div class="card">
-        <h1>鯉の滝登り</h1>
-        <p>荒波を越え、頂上の龍門を目指せ。<br>
-           マウス・タッチで鯉を左右に導き、<br>
-           障害物を避けながら泡で体力を回復せよ。</p>
-        <p class="sub">100m 登り切れば龍へと進化する</p>
+<div id="start-screen" class="overlay overlay-title">
+    <div class="setsuna">
+        <span class="setsuna-petal" aria-hidden="true"></span>
+        <span class="setsuna-petal" aria-hidden="true"></span>
+        <span class="setsuna-petal" aria-hidden="true"></span>
+        <span class="setsuna-petal" aria-hidden="true"></span>
+        <span class="setsuna-petal" aria-hidden="true"></span>
+        <div class="setsuna-flash" aria-hidden="true"></div>
+        <div class="setsuna-ink" aria-hidden="true"></div>
+        <p class="setsuna-word">刹那</p>
+        <h1 class="setsuna-title">鯉の滝登り</h1>
+        <svg class="setsuna-leap" viewBox="0 0 260 176" aria-hidden="true">
+            <defs>
+                <linearGradient id="skoi-shi" x1="0.18" y1="0" x2="0.82" y2="1">
+                    <stop offset="0" stop-color="#fffaf3"/>
+                    <stop offset="1" stop-color="#d4c4ae"/>
+                </linearGradient>
+            </defs>
+            <g fill="none" stroke="rgba(255,232,186,.38)" stroke-linecap="round">
+                <path d="M18 138 C86 108, 148 76, 214 42" stroke-width="1.35"/>
+                <path d="M32 148 C96 118, 160 86, 218 56" stroke-width="1" opacity=".45"/>
+            </g>
+            <path d="M84.4,169.4C84.7,168.4 83.9,166.9 82.5,166.1C81.7,165.7 81.1,165.0 81.0,164.3C80.7,162.7 78.7,161.0 77.7,161.6C76.6,162.1 76.4,162.6 76.2,164.6L76.0,166.3L77.9,168.2L79.7,170.0L81.9,170.0C83.5,170.0 84.2,169.8 84.4,169.4ZM125.2,168.4C126.4,167.4 126.9,167.3 127.3,167.7C127.8,168.0 128.2,167.8 129.6,166.4C132.0,164.1 133.1,160.0 131.7,158.8C130.7,158.0 130.9,157.3 132.5,156.1C134.7,154.4 134.3,151.9 131.7,152.0C130.3,152.0 129.3,152.6 128.9,153.6C128.5,154.7 128.1,154.5 127.2,152.7L126.4,151.0L124.5,150.4L122.6,149.8L122.2,150.4C121.5,151.5 121.8,153.1 122.8,153.8C123.9,154.5 124.2,156.0 123.5,157.1C123.2,157.6 123.0,157.6 122.4,157.0C121.6,156.2 120.0,156.2 119.7,157.0C119.4,157.8 119.7,159.2 120.3,159.2C120.5,159.2 120.6,160.1 120.6,161.2C120.6,165.5 117.4,166.0 114.7,162.1L113.8,160.9L114.4,160.4C115.2,159.7 115.2,159.0 114.5,158.4C113.7,157.8 112.8,158.2 112.3,159.4C112.0,160.0 111.5,160.4 110.9,160.4C110.4,160.4 109.5,160.6 108.8,161.0L107.7,161.6L107.0,161.0C105.9,160.0 103.8,155.2 103.1,152.1C102.7,150.2 102.4,145.6 102.1,138.1C101.9,131.9 101.6,125.2 101.4,123.2C100.0,111.2 100.5,104.5 103.3,99.0C104.7,96.1 109.1,90.8 109.9,91.0C110.1,91.1 110.3,92.3 110.4,93.8C110.5,95.2 110.8,97.5 111.2,98.7C111.7,100.4 111.8,101.3 111.4,102.2L111.0,103.4L111.8,103.4C112.9,103.4 116.5,99.2 118.0,96.1C119.1,93.9 119.4,92.6 119.6,89.8C119.8,87.4 120.2,85.7 120.9,84.4L121.9,82.5L127.6,79.6C130.8,78.0 133.6,76.8 133.7,77.0C133.9,77.1 133.8,77.8 133.5,78.4C132.9,79.8 133.2,85.0 133.9,89.0L134.4,91.3L133.4,92.8L132.5,94.3L133.7,94.0C137.1,93.2 142.2,88.1 144.4,83.5C145.4,81.2 145.8,79.8 147.3,73.2C148.0,70.0 148.5,69.3 151.3,67.6C153.8,66.2 161.5,61.0 163.7,59.4L165.6,57.9L165.6,59.9C165.6,63.3 166.1,64.0 169.9,66.5C171.8,67.8 175.2,70.5 177.4,72.7C179.6,74.8 181.6,76.5 181.9,76.5C182.1,76.5 182.7,75.5 183.2,74.4L184.1,72.3L183.9,66.1C183.7,58.8 183.2,56.6 180.6,51.3C179.6,49.3 178.8,47.5 178.8,47.4C178.8,47.2 180.4,45.5 182.2,43.5C184.1,41.5 186.7,38.5 188.1,36.8C189.4,35.1 191.1,32.9 192.0,31.9C192.8,30.9 195.0,28.1 196.9,25.7L200.2,21.4L200.7,22.0C201.3,22.9 201.7,22.5 201.7,21.1C201.7,20.5 202.3,18.8 203.1,17.3C204.7,14.3 205.0,11.5 203.9,9.9C203.1,8.8 199.4,7.0 197.6,7.0C196.9,7.0 195.9,6.8 195.5,6.5C194.9,6.1 193.4,5.9 189.5,6.0L184.2,6.1L178.3,8.0C169.7,10.7 165.0,12.7 157.4,16.7C150.6,20.4 141.9,25.7 138.9,28.1C138.0,28.8 136.6,29.8 135.7,30.3L134.1,31.3L128.9,31.3C121.7,31.4 115.1,33.5 113.8,36.2C113.5,36.8 112.5,38.1 111.7,39.0C110.8,40.1 110.2,41.1 110.2,41.8C110.2,42.5 109.5,43.7 108.4,45.0L106.6,47.2L106.8,48.5C107.1,50.1 105.4,52.7 100.9,57.9C97.2,62.1 94.0,68.0 93.9,70.7C93.9,72.0 93.4,73.5 92.5,75.2L91.2,77.7L91.2,81.0L91.1,84.3L90.0,86.0C88.7,88.0 84.0,92.2 79.8,95.0C71.5,100.6 63.1,109.4 59.7,116.0C56.9,121.6 56.3,123.9 56.1,130.3L55.9,136.1L57.0,141.2C58.2,147.3 58.3,148.9 57.2,151.6C56.2,154.2 56.2,154.2 57.1,153.5C58.1,152.7 59.2,149.9 59.2,148.3C59.2,147.5 60.2,144.1 61.4,140.8L63.5,134.8L67.0,130.9L70.6,127.1L74.8,125.0C78.7,123.0 80.7,121.3 82.6,118.7C83.4,117.5 84.2,117.9 85.4,120.2C87.2,123.4 87.7,126.0 87.7,131.0C87.7,139.1 90.4,146.4 94.9,151.3C96.0,152.4 97.6,154.5 98.7,156.0C102.0,160.8 108.6,166.1 113.5,167.7L115.9,168.5L118.1,168.1C119.3,167.8 120.8,167.3 121.5,167.0C123.1,166.2 123.1,166.2 122.6,167.2C121.3,169.6 122.8,170.3 125.2,168.4ZM101.4,167.8C101.4,167.5 101.6,167.2 101.9,167.2C102.9,167.2 103.3,166.0 102.8,164.9C102.4,163.9 98.0,161.5 95.6,161.0C94.4,160.7 92.5,161.6 92.5,162.5C92.5,162.8 93.3,163.9 94.3,164.9L96.1,166.9L97.4,166.6C98.4,166.4 98.8,166.6 99.5,167.4C100.5,168.5 101.4,168.7 101.4,167.8ZM143.9,166.0C144.7,165.3 145.1,164.4 145.1,163.7C145.2,163.1 145.3,162.2 145.5,161.8C145.9,160.6 145.2,158.9 144.0,158.4C142.2,157.6 141.0,158.9 140.6,161.8C140.5,163.1 140.3,164.5 140.1,164.9C139.7,165.8 140.9,167.2 142.0,167.2C142.4,167.2 143.3,166.7 143.9,166.0ZM123.4,164.2C123.4,163.4 123.8,162.2 124.4,161.3C125.0,160.5 125.4,159.5 125.4,159.1C125.4,158.7 125.6,158.0 125.8,157.5C126.0,157.0 126.3,155.9 126.4,155.0C126.7,153.2 127.3,153.1 127.6,154.8C127.8,155.6 127.6,156.3 127.2,157.0C126.7,157.7 126.7,158.1 127.0,158.7C127.3,159.3 127.3,159.6 126.6,160.2C126.2,160.6 125.8,161.1 125.8,161.4C125.8,162.2 124.4,165.1 123.8,165.4C123.6,165.5 123.4,165.1 123.4,164.2ZM136.2,163.0C137.2,162.2 137.3,161.5 136.5,160.8C135.8,160.2 134.7,161.3 134.7,162.6C134.7,163.7 135.0,163.8 136.2,163.0ZM129.3,161.3C129.5,159.9 129.4,159.5 128.6,158.8C128.0,158.2 127.8,157.8 128.1,157.5C128.4,157.2 128.9,157.4 129.6,158.1C130.9,159.4 130.9,160.2 129.8,161.8L129.0,163.0L129.3,161.3ZM87.1,158.7C87.1,157.9 86.9,157.7 85.8,157.6C84.7,157.5 84.5,157.6 84.5,158.3C84.5,158.8 84.9,159.3 85.4,159.6C86.7,160.1 87.1,159.8 87.1,158.7ZM77.2,154.2C77.3,153.4 77.1,153.0 76.3,152.7C75.1,152.2 74.1,152.7 74.1,153.9C74.1,155.8 77.0,156.1 77.2,154.2ZM118.6,152.0C118.6,149.9 115.5,148.0 114.3,149.2C113.1,150.4 114.3,152.3 116.2,152.3C116.8,152.3 117.5,152.5 117.6,152.7C118.1,153.5 118.6,153.1 118.6,152.0ZM139.1,152.0C140.8,150.6 139.1,148.9 137.3,150.1C135.9,151.0 135.9,152.7 137.2,152.7C137.8,152.7 138.6,152.4 139.1,152.0ZM146.7,146.1C148.8,145.0 148.6,142.7 146.3,142.7C144.4,142.7 143.3,144.8 144.5,146.1C145.3,146.9 145.3,146.9 146.7,146.1ZM123.4,142.9C124.6,141.6 122.0,139.5 120.7,140.8C120.2,141.3 120.1,142.8 120.5,143.2C121.0,143.7 122.9,143.5 123.4,142.9ZM78.0,141.8C77.8,140.6 76.1,140.3 76.1,141.4C76.1,142.4 76.4,142.7 77.4,142.7C77.9,142.7 78.1,142.5 78.0,141.8ZM115.4,136.9C116.1,136.1 114.9,134.3 113.8,134.3C112.5,134.3 112.0,135.7 113.0,136.7C114.0,137.6 114.7,137.7 115.4,136.9ZM125.8,134.0C126.1,133.3 126.1,132.8 125.8,132.2C125.1,130.9 123.7,131.4 123.2,133.2C122.7,135.4 124.9,136.1 125.8,134.0ZM141.5,131.1C143.0,129.6 142.2,127.6 140.2,127.9C139.1,128.1 138.3,130.3 139.1,131.3C139.8,132.1 140.5,132.0 141.5,131.1ZM112.5,127.6C112.7,126.4 111.6,125.6 110.8,126.2C110.2,126.8 110.0,127.9 110.5,128.4C111.0,129.0 112.4,128.4 112.5,127.6ZM130.6,118.9C131.8,117.8 130.5,115.5 129.0,116.2C127.7,116.9 128.2,119.4 129.7,119.4C129.9,119.4 130.3,119.2 130.6,118.9ZM131.1,101.4C131.1,100.1 130.4,99.7 129.4,100.2C128.5,100.7 128.5,101.5 129.3,102.3C130.1,103.2 131.1,102.7 131.1,101.4Z" fill="url(#skoi-shi)" stroke="#3a2418" stroke-width=".7" stroke-linejoin="round"/>
+        </svg>
+        <p class="setsuna-line">その一跳で、龍になる</p>
+        <span class="setsuna-stamp" aria-hidden="true">登</span>
         <button class="btn" id="start-btn">泳ぎ始める</button>
+        <p class="setsuna-note">左右で導け　跳ねて一閃　SPACE / 二度押し</p>
     </div>
 </div>
 
@@ -263,39 +587,52 @@
     </div>
 </div>
 
+<main id="game-shell">
+<section id="game-stage">
+<div id="screen-wrap">
+<canvas id="water-gl" aria-hidden="true"></canvas>
 <canvas id="c"></canvas>
+<div id="ui-layer">
+    <div id="hud-top">
+        <div id="hud-left">
+            <div>進捗：<span id="dist-ui">0</span> m / 100 m</div>
+            <div style="font-size:.8rem;opacity:.7;">最高記録：<span id="best-ui">0</span> m</div>
+        </div>
+        <div id="energy-wrap">
+            <div id="energy-label">体力</div>
+            <div id="energy-bar"><div id="energy-fill" style="width:100%"></div></div>
+            <div id="dragon-label">龍気</div>
+            <div id="dragon-bar"><div id="dragon-fill" style="width:0%"></div></div>
+        </div>
+    </div>
+    <div id="diff-badge">準備中</div>
+    <div id="progress-wrap">
+        <div style="font-size:.75rem;opacity:.7;">龍門まで</div>
+        <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
+    </div>
+</div>
+</div>
+</section>
+<section id="control-deck" aria-label="操作盤">
+    <button type="button" id="mute-btn" class="deck-btn" aria-label="音を消す">音</button>
+    <p class="deck-hint">左右で導け　跳ねて一閃</p>
+    <button type="button" id="hane-btn" class="cool">跳<small>2回 / SPACE</small></button>
+</section>
+</main>
 
+<audio id="koi-bgm" loop preload="none" playsinline></audio>
+<script src="water.js"></script>
+<script src="plants.js"></script>
 <script>
 /* ════════════════════════════════════════════════
    鯉の滝登り — スプライトシート対応（外部PNG / Base64 の両対応）
    ════════════════════════════════════════════════ */
 
 const canvas = document.getElementById('c');
-const ctx    = canvas.getContext('2d');
+const ctx    = canvas.getContext('2d', { alpha: true, desynchronized: true }) || canvas.getContext('2d');
+const FONT_JP = '"Hiragino Mincho ProN","Yu Mincho","YuMincho",serif';
 
 const ASSET_VERSION = '1';
-
-/** iOS 古めの Safari 向け（roundRect 未対応時の白画面防止） */
-function drawRoundRect(c, x, y, w, h, r) {
-    const rad = Math.min(r, w / 2, h / 2);
-    if (typeof c.roundRect === 'function') {
-        c.beginPath();
-        c.roundRect(x, y, w, h, rad);
-        c.fill();
-        return;
-    }
-    c.beginPath();
-    c.moveTo(x + rad, y);
-    c.lineTo(x + w - rad, y);
-    c.quadraticCurveTo(x + w, y, x + w, y + rad);
-    c.lineTo(x + w, y + h - rad);
-    c.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
-    c.lineTo(x + rad, y + h);
-    c.quadraticCurveTo(x, y + h, x, y + h - rad);
-    c.lineTo(x, y + rad);
-    c.quadraticCurveTo(x, y, x + rad, y);
-    c.fill();
-}
 
 /**
  * 完全1ファイル運用時: SPRITE_INLINE に data:image/png;base64,... を貼り付け。
@@ -333,6 +670,7 @@ SPRITE.img.onload = () => {
     SPRITE.frameW = SPRITE.img.naturalWidth / SPRITE.cols;
     SPRITE.frameH = SPRITE.img.naturalHeight / SPRITE.rows;
     refreshSpriteDrawSize();
+    try { ctx.drawImage(SPRITE.img, 0, 0, 1, 1); } catch (e) {}
 };
 let spriteLoadWarningShown = false;
 function showLoadWarning(msg) {
@@ -369,11 +707,47 @@ if (typeof SPRITE_INLINE === 'string' && SPRITE_INLINE.length > 80 && SPRITE_INL
     SPRITE.img.src = SPRITE_URL;
 }
 
-/** 障害物「丸太」用 SVG（canvas に drawImage するため data URL で読み込み） */
-const LOG_SVG_MARKUP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><defs><filter id="barkTexture" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.4" numOctaves="3" result="noise"/><feDiffuseLighting in="noise" lighting-color="#8b4513" surfaceScale="2"><feDistantLight azimuth="45" elevation="60"/></feDiffuseLighting></filter><linearGradient id="logBodyGradient" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:#5d2e0a;stop-opacity:1"/><stop offset="20%" style="stop-color:#8b4513;stop-opacity:1"/><stop offset="50%" style="stop-color:#a0522d;stop-opacity:1"/><stop offset="80%" style="stop-color:#8b4513;stop-opacity:1"/><stop offset="100%" style="stop-color:#3e1f07;stop-opacity:1"/></linearGradient><radialGradient id="ringsGradient" cx="50%" cy="50%" r="50%"><stop offset="0%" style="stop-color:#f5deb3;stop-opacity:1"/><stop offset="20%" style="stop-color:#deb887;stop-opacity:1"/><stop offset="40%" style="stop-color:#d2b48c;stop-opacity:1"/><stop offset="60%" style="stop-color:#cd853f;stop-opacity:1"/><stop offset="80%" style="stop-color:#8b4513;stop-opacity:1"/><stop offset="100%" style="stop-color:#5d2e0a;stop-opacity:1"/></radialGradient></defs><rect x="20" y="10" width="160" height="80" rx="5" fill="url(#logBodyGradient)"/><g opacity="0.3"><line x1="25" y1="30" x2="175" y2="30" stroke="#3e1f07" stroke-width="1"/><line x1="20" y1="50" x2="180" y2="50" stroke="#3e1f07" stroke-width="1"/><line x1="25" y1="70" x2="175" y2="70" stroke="#3e1f07" stroke-width="1"/></g><ellipse cx="180" cy="50" rx="15" ry="40" fill="url(#ringsGradient)" stroke="#5d2e0a" stroke-width="1"/><g stroke="#8b4513" fill="none" opacity="0.5" stroke-width="0.5"><ellipse cx="180" cy="50" rx="10" ry="28"/><ellipse cx="180" cy="50" rx="6" ry="18"/><ellipse cx="180" cy="50" rx="3" ry="8"/></g><path d="M 20 10 A 15 40 0 0 0 20 90" fill="none" stroke="#3e1f07" stroke-width="2"/></svg>`;
+/** iOS 古めの Safari 向け（roundRect 未対応時の白画面防止） */
+function drawRoundRect(c, x, y, w, h, r) {
+    const rad = Math.min(r, w / 2, h / 2);
+    if (typeof c.roundRect === 'function') {
+        c.beginPath();
+        c.roundRect(x, y, w, h, rad);
+        c.fill();
+        return;
+    }
+    c.beginPath();
+    c.moveTo(x + rad, y);
+    c.lineTo(x + w - rad, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + rad);
+    c.lineTo(x + w, y + h - rad);
+    c.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    c.lineTo(x + rad, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - rad);
+    c.lineTo(x, y + rad);
+    c.quadraticCurveTo(x, y, x + rad, y);
+    c.fill();
+}
+
+/** 障害物「丸太」用 SVG。feTurbulence は初回ラスタライズで固まるので使わない */
+const LOG_SVG_MARKUP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><defs><linearGradient id="logBodyGradient" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#5d2e0a"/><stop offset="20%" stop-color="#8b4513"/><stop offset="50%" stop-color="#a0522d"/><stop offset="80%" stop-color="#8b4513"/><stop offset="100%" stop-color="#3e1f07"/></linearGradient><radialGradient id="ringsGradient" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f5deb3"/><stop offset="40%" stop-color="#d2b48c"/><stop offset="80%" stop-color="#8b4513"/><stop offset="100%" stop-color="#5d2e0a"/></radialGradient></defs><rect x="20" y="10" width="160" height="80" rx="5" fill="url(#logBodyGradient)"/><g opacity="0.3"><line x1="25" y1="30" x2="175" y2="30" stroke="#3e1f07" stroke-width="1"/><line x1="20" y1="50" x2="180" y2="50" stroke="#3e1f07" stroke-width="1"/><line x1="25" y1="70" x2="175" y2="70" stroke="#3e1f07" stroke-width="1"/></g><ellipse cx="180" cy="50" rx="15" ry="40" fill="url(#ringsGradient)" stroke="#5d2e0a" stroke-width="1"/><g stroke="#8b4513" fill="none" opacity="0.5" stroke-width="0.5"><ellipse cx="180" cy="50" rx="10" ry="28"/><ellipse cx="180" cy="50" rx="6" ry="18"/><ellipse cx="180" cy="50" rx="3" ry="8"/></g><path d="M 20 10 A 15 40 0 0 0 20 90" fill="none" stroke="#3e1f07" stroke-width="2"/></svg>`;
 const LOG_IMG = new Image();
+const LOG_BAKE = document.createElement('canvas');
+LOG_BAKE.width = 200;
+LOG_BAKE.height = 100;
 let logImageReady = false;
-LOG_IMG.onload = () => { logImageReady = LOG_IMG.naturalWidth > 0; };
+let logBaked = false;
+function bakeLogSprite() {
+    if (logBaked || !logImageReady) return;
+    const lx = LOG_BAKE.getContext('2d');
+    lx.clearRect(0, 0, 200, 100);
+    lx.drawImage(LOG_IMG, 0, 0, 200, 100);
+    logBaked = true;
+}
+LOG_IMG.onload = () => {
+    logImageReady = LOG_IMG.naturalWidth > 0;
+    bakeLogSprite();
+};
 LOG_IMG.onerror = () => { logImageReady = false; };
 LOG_IMG.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(LOG_SVG_MARKUP);
 
@@ -384,16 +758,47 @@ const energyFill   = document.getElementById('energy-fill');
 const dragonFill   = document.getElementById('dragon-fill');
 const progressFill = document.getElementById('progress-fill');
 const diffBadge    = document.getElementById('diff-badge');
+const haneBtn      = document.getElementById('hane-btn');
 const startScreen  = document.getElementById('start-screen');
 const goScreen     = document.getElementById('gameover-screen');
 const vicScreen    = document.getElementById('victory-screen');
 
-document.getElementById('start-btn')  .addEventListener('click', startGame);
-document.getElementById('retry-btn')  .addEventListener('click', startGame);
-document.getElementById('victory-btn').addEventListener('click', startGame);
-['start-btn', 'retry-btn', 'victory-btn'].forEach(id => {
-    document.getElementById(id).addEventListener('pointerdown', unlockWebAudio, { passive: true });
-});
+// ── Game state ──
+let STATE = 'START'; // START | PLAYING | GAMEOVER | VICTORY
+let distance = 0;
+let frame    = 0;
+
+// ── Entities ──
+let koi, obstacles, bubbles, particles, waterLines, decors;
+
+function bindTap(el, handler) {
+    if (!el) return;
+    let locked = false;
+    const fire = (e) => {
+        if (locked) return;
+        locked = true;
+        if (e.cancelable) e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        try { if (e.pointerId != null) el.setPointerCapture(e.pointerId); } catch (err) {}
+        el.classList.add('is-pressed');
+        if (navigator.vibrate) navigator.vibrate(15);
+        unlockWebAudio();
+        handler(e);
+        setTimeout(() => { locked = false; }, 280);
+    };
+    const release = () => el.classList.remove('is-pressed');
+    el.addEventListener('pointerdown', fire);
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', release);
+    el.addEventListener('click', e => e.preventDefault());
+}
+
+bindTap(document.getElementById('start-btn'), startGame);
+bindTap(document.getElementById('retry-btn'), startGame);
+bindTap(document.getElementById('victory-btn'), startGame);
+bindTap(haneBtn, doHane);
+bindTap(document.getElementById('mute-btn'), toggleMute);
 
 document.addEventListener('pointermove', e => {
     if (STATE === 'PLAYING') setTarget(e.clientX);
@@ -411,17 +816,31 @@ function getSafeDPR() {
 
 function resize() {
     DPR = getSafeDPR();
-    const vv = window.visualViewport;
-    const cssW = vv && vv.width > 0 ? vv.width : window.innerWidth;
-    const cssH = vv && vv.height > 0 ? vv.height : window.innerHeight;
+    const wrap = document.getElementById('screen-wrap');
+    const cssW = wrap && wrap.clientWidth > 0 ? wrap.clientWidth : window.innerWidth;
+    const cssH = wrap && wrap.clientHeight > 0 ? wrap.clientHeight : Math.floor(window.innerHeight * 0.75);
     W = cssW;
     H = cssH;
     canvas.width = Math.max(1, Math.floor(cssW * DPR));
     canvas.height = Math.max(1, Math.floor(cssH * DPR));
-    canvas.style.width = cssW + 'px';
-    canvas.style.height = cssH + 'px';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.dataset.logicalWidth = String(cssW);
+    canvas.dataset.logicalHeight = String(cssH);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     refreshSpriteDrawSize();
+    if (window.KoiWater) {
+        KoiWater.resize(cssW, cssH, DPR);
+        if (KoiWater.el) {
+            KoiWater.el.dataset.logicalWidth = String(cssW);
+            KoiWater.el.dataset.logicalHeight = String(cssH);
+        }
+    }
+    const waterEl = document.getElementById('water-gl');
+    if (waterEl) {
+        waterEl.dataset.logicalWidth = String(cssW);
+        waterEl.dataset.logicalHeight = String(cssH);
+    }
 
     if (koi) {
         const pad = 20;
@@ -435,6 +854,9 @@ if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', resize);
 }
 resize();
+if (window.KoiWater) KoiWater.init(W, H, DPR);
+if (window.KoiPlants) KoiPlants.init();
+requestAnimationFrame(() => resize());
 
 // ── Persistent data（破損・NaN対策／旧キー koiking_best からの移行対応）
 function sanitizeBestStored(raw) {
@@ -454,21 +876,14 @@ function loadBestDistance() {
     return v;
 }
 function persistBestDistance(n) {
-    const v = sanitizeBestStored(String(n)) ?? 0;
+    const stored = sanitizeBestStored(String(n));
+    const v = stored !== null ? stored : 0;
     bestDistance = v;
     try { localStorage.setItem('koi_best', String(v)); } catch (e) {}
     bestUI.textContent = String(v);
 }
 let bestDistance = loadBestDistance();
 bestUI.textContent = String(bestDistance);
-
-// ── Game state ──
-let STATE = 'START'; // START | PLAYING | GAMEOVER | VICTORY
-let distance = 0;
-let frame    = 0;
-
-// ── Entities ──
-let koi, obstacles, bubbles, particles, waterLines;
 
 const MAX_PARTICLES = 180;
 function limitParticles() {
@@ -490,16 +905,110 @@ const CFG = {
     DRAGON_NEAR_MISS: 8,
     DRAGON_DURATION: 240,
 
-    get speed()      { return 2.5 + (distance / CFG.MAX_DIST) * 4.5; },
-    get spawnRate()  { return Math.min(0.045, 0.012 + distance * 0.0005); },
+    // ── 跳ね（水面蹴り）──
+    HANE_COST:  14,     // 消費体力
+    HANE_DUR:   26,     // 跳ね動作フレーム
+    HANE_INV:   19,     // うち無敵フレーム
+    HANE_CD:    42,     // クールダウン
+    HANE_LIFT:  0.15,   // 画面高に対する跳ね上がり量
+    HANE_BOOST: 0.11,   // 跳ね中の追加距離／フレーム
+    HANE_KI:    4,      // 跳ねで潜り抜けた障害物ごとの龍気
+    MAX_OBSTACLES: 5,
+
+    get speed()      { return (2.2 + (distance / CFG.MAX_DIST) * 3.4) * currentLayer().speedMul; },
+    get spawnRate()  {
+        if (distance < 8) return 0;
+        return Math.min(0.012, 0.0026 + (distance - 8) * 0.00016);
+    },
     get diffLabel()  {
-        const p = distance / CFG.MAX_DIST;
-        if (p < 0.25) return { text: '穏やか', color: '#7df9ff' };
-        if (p < 0.5)  return { text: '急流',   color: '#90ee90' };
-        if (p < 0.75) return { text: '激流',   color: '#ffa500' };
-        return              { text: '龍門前',  color: '#ff4444' };
+        const L = currentLayer();
+        return { text: L.name, color: L.color };
     }
 };
+
+/* ════════════════════════════════
+   ① 四層の滝 — LAYER SYSTEM
+   ════════════════════════════════ */
+const LAYERS = [
+    {
+        name: '里の川', sub: '穏やかな流れ', color: '#7df9ff',
+        bg: ['#001a2e', '#003d5b', '#005f73'],
+        mist: '180,230,255',
+        weights: { rock: 0.55, log: 0.30 },      // 残りが渦
+        speedMul: 1.00, decor: 'petal', decorColor: '255,196,221'
+    },
+    {
+        name: '竹林の渓', sub: '笹鳴りの急流', color: '#9ae66e',
+        bg: ['#04231c', '#0b4a37', '#12704d'],
+        mist: '200,255,210',
+        weights: { rock: 0.22, log: 0.58 },
+        speedMul: 1.06, decor: 'leaf', decorColor: '168,224,99'
+    },
+    {
+        name: '紅葉の淵', sub: '茜に染まる渦', color: '#ffa46b',
+        bg: ['#2a0d16', '#5c1f22', '#8a4020'],
+        mist: '255,210,180',
+        weights: { rock: 0.28, log: 0.20 },
+        speedMul: 1.12, decor: 'momiji', decorColor: '255,107,74'
+    },
+    {
+        name: '雷雲の龍門', sub: '龍門、目前', color: '#ff8ba0',
+        bg: ['#0d0620', '#241041', '#43205e'],
+        mist: '220,200,255',
+        weights: { rock: 0.34, log: 0.30 },
+        speedMul: 1.22, decor: 'spark', decorColor: '255,215,0'
+    }
+];
+const LAYER_BAND = 100 / LAYERS.length;   // = CFG.MAX_DIST / 4
+
+function layerIndexAt(d) {
+    const i = Math.floor(d / LAYER_BAND);
+    return Math.max(0, Math.min(LAYERS.length - 1, i));
+}
+function currentLayer() { return LAYERS[layerIndexAt(distance)]; }
+
+function obstacleMinGap() {
+    return Math.max(300, H * 0.48);
+}
+function spawnObstacleX() {
+    const avoid = koi ? koi.x : W / 2;
+    const clear = Math.max(88, W * 0.22);
+    let x = 50 + Math.random() * (W - 100);
+    let guard = 0;
+    while (guard++ < 10 && Math.abs(x - avoid) < clear) {
+        x = 50 + Math.random() * (W - 100);
+    }
+    return x;
+}
+function nextSpawnY(except) {
+    const gap = obstacleMinGap();
+    let y = -(gap * 0.7 + Math.random() * gap * 0.35);
+    const others = (obstacles || []).filter(o => o && o !== except);
+    let guard = 0;
+    while (guard++ < 16 && others.some(o => Math.abs(o.y - y) < gap)) {
+        y -= gap;
+    }
+    return y;
+}
+
+// 層の終盤で次層の色へなめらかに遷移させるための係数
+function layerBlend() {
+    const i = layerIndexAt(distance);
+    if (i >= LAYERS.length - 1) return { i, next: i, f: 0 };
+    const local = (distance - i * LAYER_BAND) / LAYER_BAND;
+    const START = 0.80;
+    if (local < START) return { i, next: i + 1, f: 0 };
+    const t = (local - START) / (1 - START);
+    return { i, next: i + 1, f: t * t * (3 - 2 * t) };
+}
+
+function hex2rgb(h) {
+    return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+}
+function mixHex(a, b, t) {
+    const A = hex2rgb(a), B = hex2rgb(b);
+    return `rgb(${Math.round(A[0]+(B[0]-A[0])*t)},${Math.round(A[1]+(B[1]-A[1])*t)},${Math.round(A[2]+(B[2]-A[2])*t)})`;
+}
 
 /* ════════════════════════════════
    WEB AUDIO — Procedural SFX
@@ -510,6 +1019,52 @@ function getAudio() {
     return audioCtx;
 }
 let audioUnlockTried = false;
+const bgmEl = document.getElementById('koi-bgm');
+if (bgmEl) {
+    bgmEl.loop = true;
+    bgmEl.preload = 'auto';
+    bgmEl.volume = 0.4;
+    fetch('audio/bgm.m4a').then((r) => {
+        if (!r.ok) throw new Error('bgm');
+        return r.blob();
+    }).then((blob) => {
+        bgmEl.src = URL.createObjectURL(blob);
+        if (bgmWanted) startBGM();
+    }).catch(() => {
+        if (!bgmEl.src) bgmEl.src = 'audio/bgm.m4a';
+    });
+}
+let bgmWanted = false;
+let muted = false;
+try { muted = localStorage.getItem('koiking-mute') === '1'; } catch (e) {}
+const muteBtn = document.getElementById('mute-btn');
+function applyMute() {
+    if (bgmEl) bgmEl.muted = muted;
+    if (window.KoiWater && typeof KoiWater.setMuted === 'function') KoiWater.setMuted(muted);
+    if (muteBtn) {
+        muteBtn.textContent = muted ? '静' : '音';
+        muteBtn.setAttribute('aria-label', muted ? '音を出す' : '音を消す');
+    }
+}
+function toggleMute() {
+    muted = !muted;
+    try { localStorage.setItem('koiking-mute', muted ? '1' : '0'); } catch (e) {}
+    applyMute();
+}
+function startBGM() {
+    if (!bgmEl) return;
+    bgmWanted = true;
+    applyMute();
+    try {
+        const p = bgmEl.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) {}
+}
+function pauseBGM() {
+    if (!bgmEl) return;
+    try { bgmEl.pause(); } catch (e) {}
+}
+applyMute();
 function unlockWebAudio() {
     try {
         const ac = getAudio();
@@ -524,12 +1079,14 @@ function unlockWebAudio() {
         }
         if (ac.state === 'suspended') void ac.resume();
     } catch (e) {}
+    startBGM();
 }
 ['pointerdown', 'touchend', 'keydown'].forEach(ev => {
     document.addEventListener(ev, unlockWebAudio, { capture: true, passive: true, once: true });
 });
 function playTone(freq, type, duration, vol = 0.15, detune = 0) {
     try {
+        if (muted) return;
         if (!audioCtx) return;
         if (audioCtx.state === 'suspended') return;
 
@@ -549,6 +1106,16 @@ function sfxHit()      {
     playTone(120, 'sawtooth', 0.25, 0.2);
     playTone(80,  'square',   0.2,  0.15, -100);
 }
+function sfxHane()     {
+    playTone(420, 'sine',     0.12, 0.12);
+    setTimeout(() => playTone(760, 'sine', 0.16, 0.10), 45);
+    playTone(1600,'triangle', 0.08, 0.05);
+}
+function sfxHaneFail() { playTone(150, 'square', 0.09, 0.06); }
+function sfxLayer()    {
+    [392, 523, 698].forEach((f, i) =>
+        setTimeout(() => playTone(f, 'triangle', 0.55, 0.10), i * 110));
+}
 function sfxVictory()  {
     [523,659,784,1047].forEach((f,i) =>
         setTimeout(() => playTone(f,'sine',0.5,0.18), i*150));
@@ -560,14 +1127,14 @@ function sfxVictory()  {
 class Particle {
     constructor(x, y, opts = {}) {
         this.x  = x; this.y = y;
-        this.vx = opts.vx ?? (Math.random()-0.5)*6;
-        this.vy = opts.vy ?? (Math.random()-0.5)*6;
+        this.vx = opts.vx !== undefined ? opts.vx : (Math.random()-0.5)*6;
+        this.vy = opts.vy !== undefined ? opts.vy : (Math.random()-0.5)*6;
         this.life    = 1.0;
-        this.decay   = opts.decay ?? 0.025;
-        this.r       = opts.r ?? 3;
-        this.color   = opts.color ?? '#7df9ff';
-        this.gravity = opts.gravity ?? 0.06;
-        this.glow    = opts.glow ?? false;
+        this.decay   = opts.decay !== undefined ? opts.decay : 0.025;
+        this.r       = opts.r !== undefined ? opts.r : 3;
+        this.color   = opts.color !== undefined ? opts.color : '#7df9ff';
+        this.gravity = opts.gravity !== undefined ? opts.gravity : 0.06;
+        this.glow    = opts.glow !== undefined ? opts.glow : false;
     }
     update() {
         this.x += this.vx;
@@ -580,13 +1147,17 @@ class Particle {
         if (this.life <= 0) return;
         ctx.save();
         ctx.globalAlpha = Math.max(0, this.life);
-        if (this.glow) {
-            ctx.shadowBlur  = 10;
-            ctx.shadowColor = this.color;
-        }
         ctx.fillStyle = this.color;
+        const r = this.r * this.life;
+        if (this.glow) {
+            ctx.globalAlpha = Math.max(0, this.life) * 0.28;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, r * 2.1, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.globalAlpha = Math.max(0, this.life);
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r * this.life, 0, Math.PI*2);
+        ctx.arc(this.x, this.y, r, 0, Math.PI*2);
         ctx.fill();
         ctx.restore();
     }
@@ -618,6 +1189,43 @@ class Koi {
         this.dragonKi = 0;
         this.dragonMode = false;
         this.dragonTimer = 0;
+
+        // ② 跳ね（水面蹴り）
+        this.haneTimer = 0;
+        this.haneCd    = 0;
+        this.haneCombo = 0;
+    }
+
+    // 跳ね中の前半は無敵、龍モード中も無敵
+    get invincible() {
+        return this.dragonMode || this.haneTimer > (CFG.HANE_DUR - CFG.HANE_INV);
+    }
+
+    tryHane() {
+        if (STATE !== 'PLAYING') return false;
+        if (this.haneTimer > 0 || this.haneCd > 0) return false;
+
+        const free = this.dragonMode;
+        if (!free && this.energy < CFG.HANE_COST + 2) { sfxHaneFail(); return false; }
+        if (!free) this.energy -= CFG.HANE_COST;
+
+        this.haneTimer = free ? CFG.HANE_DUR + 10 : CFG.HANE_DUR;
+        this.haneCd    = free ? Math.round(CFG.HANE_CD * 0.55) : CFG.HANE_CD;
+        this.haneCombo = 0;
+        sfxHane();
+
+        // 水しぶき
+        for (let i = 0; i < 16; i++) {
+            particles.push(new Particle(this.x + (Math.random()-0.5)*30, this.y + 18, {
+                vx: (Math.random()-0.5)*5,
+                vy: 1.2 + Math.random()*3,
+                r: 2 + Math.random()*2.5,
+                decay: 0.045,
+                color: Math.random() > 0.4 ? 'rgba(220,250,255,0.9)' : 'rgba(125,249,255,0.8)',
+                glow: true, gravity: 0.12
+            }));
+        }
+        return true;
     }
 
     syncHitRadius() {
@@ -638,6 +1246,33 @@ class Koi {
     }
 
     update() {
+        // ── ② 跳ね処理 ──
+        if (this.haneCd > 0) this.haneCd--;
+        let lift = 0;
+        if (this.haneTimer > 0) {
+            this.haneTimer--;
+            const p = Math.min(1, this.haneTimer / CFG.HANE_DUR);   // 1 → 0
+            lift = Math.sin(p * Math.PI) * H * CFG.HANE_LIFT;
+            distance += CFG.HANE_BOOST;
+
+            if (frame % 2 === 0) {
+                particles.push(new Particle(
+                    this.x + (Math.random()-0.5) * 26,
+                    this.y + 26 + Math.random() * 18,
+                    {
+                        vx: (Math.random()-0.5)*1.6,
+                        vy: 2.5 + Math.random()*2,
+                        r: 2 + Math.random()*2,
+                        decay: 0.05,
+                        color: this.invincible ? 'rgba(255,255,220,0.85)' : 'rgba(180,240,255,0.7)',
+                        glow: true, gravity: 0.05
+                    }
+                ));
+            }
+        }
+        const baseY = H * 0.78;
+        this.y += ((baseY - lift) - this.y) * 0.25;
+
         this.x += (this.targetX - this.x) * CFG.KOI_LERP;
         const margin = SPRITE.loaded ? SPRITE.drawW / 2 + 10 : 22;
         this.x = Math.max(margin, Math.min(W - margin, this.x));
@@ -647,7 +1282,7 @@ class Koi {
         this.tilt += (targetTiltSprite - this.tilt) * 0.12;
 
         this.trail.unshift({ x: this.x, y: this.y });
-        if (this.trail.length > (SPRITE.loaded ? 10 : 8)) this.trail.pop();
+        if (this.trail.length > (SPRITE.loaded ? 4 : 3)) this.trail.pop();
 
         if (SPRITE.loaded) {
             this.frameTimer++;
@@ -753,74 +1388,90 @@ class Koi {
     }
 
     drawProceduralKoi() {
-        const tilt = (this.targetX - this.x) * 0.008;
         ctx.translate(this.x, this.y);
-        ctx.rotate(tilt);
+        ctx.rotate(this.tilt);
+        const sway = Math.sin(this.swing);
 
-        ctx.shadowBlur  = 15;
-        ctx.shadowColor = 'rgba(255,100,100,0.4)';
-
-        const bodyGrad = ctx.createLinearGradient(-12, -25, 12, 25);
-        bodyGrad.addColorStop(0,   '#ff2222');
-        bodyGrad.addColorStop(0.4, '#ff5533');
-        bodyGrad.addColorStop(1,   '#ff8866');
-        ctx.fillStyle = bodyGrad;
+        const body = ctx.createLinearGradient(0, -48, 0, 26);
+        body.addColorStop(0, '#fffaf3');
+        body.addColorStop(1, '#d4c4ae');
+        ctx.fillStyle = body;
+        ctx.strokeStyle = '#3a2418';
+        ctx.lineWidth = 1.1;
         ctx.beginPath();
-        ctx.ellipse(0, 0, 13, 26, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.shadowBlur = 0;
-        ctx.fillStyle  = 'rgba(255,255,255,0.9)';
-        ctx.beginPath();
-        ctx.ellipse(0, -9, 6.5, 12, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(255,80,80,0.3)';
-        ctx.lineWidth   = 1;
-        [-7, -1, 5].forEach(yy => {
-            ctx.beginPath();
-            ctx.arc(0, yy, 7, 0, Math.PI);
-            ctx.stroke();
-        });
-
-        ctx.fillStyle = '#111';
-        ctx.beginPath();
-        ctx.arc(-4, -16, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(-3.5, -17, 0.8, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = 'rgba(255,120,80,0.8)';
-        [[-1], [1]].forEach(([sx]) => {
-            ctx.save();
-            ctx.scale(sx < 0 ? -1 : 1, 1);
-            ctx.beginPath();
-            ctx.moveTo(12, -4);
-            ctx.quadraticCurveTo(22, 4, 12, 8);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        });
-
-        const ts = Math.sin(this.swing) * 10;
-        const tailGrad = ctx.createLinearGradient(0, 24, 0, 48);
-        if (!this.dragonMode && this.dragonKi >= 50) {
-            tailGrad.addColorStop(0, '#ffd700');
-            tailGrad.addColorStop(0.5, '#ff8c00');
-            tailGrad.addColorStop(1, 'rgba(255,215,0,0.25)');
-        } else {
-            tailGrad.addColorStop(0, '#ff4422');
-            tailGrad.addColorStop(1, 'rgba(255,100,50,0.3)');
-        }
-        ctx.fillStyle = tailGrad;
-        ctx.beginPath();
-        ctx.moveTo(-1.5, 24);
-        ctx.quadraticCurveTo(ts - 12, 36, ts - 15, 48);
-        ctx.quadraticCurveTo(ts,      42, ts + 15, 48);
-        ctx.quadraticCurveTo(ts + 12, 36, 1.5, 24);
+        ctx.moveTo(0, -48);
+        ctx.lineTo(3.2, -38);
+        ctx.lineTo(6.2, -22);
+        ctx.bezierCurveTo(10, -6, 8.5, 10, 2.6, 26);
+        ctx.lineTo(-2.6, 26);
+        ctx.bezierCurveTo(-8.5, 10, -10, -6, -6.2, -22);
+        ctx.lineTo(-3.2, -38);
         ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#d31e16';
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 4.4, 7, 0.08, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-2, 14, 3.2, 4.5, -0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1410';
+        ctx.beginPath();
+        ctx.ellipse(3.5, 18, 2.2, 2.8, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#efe2d0';
+        ctx.beginPath();
+        ctx.moveTo(11, 2);
+        ctx.quadraticCurveTo(24, 10 + sway * 2, 12, 16);
+        ctx.quadraticCurveTo(7, 8, 11, 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-11, 2);
+        ctx.quadraticCurveTo(-24, 10 - sway * 2, -12, 16);
+        ctx.quadraticCurveTo(-7, 8, -11, 2);
+        ctx.fill();
+
+        const ts = sway * 10;
+        const tail = ctx.createLinearGradient(0, 26, ts, 52);
+        if (!this.dragonMode && this.dragonKi >= 50) {
+            tail.addColorStop(0, '#ffd700');
+            tail.addColorStop(1, 'rgba(255,140,0,0.35)');
+        } else {
+            tail.addColorStop(0, '#d31e16');
+            tail.addColorStop(1, 'rgba(122,16,12,0.35)');
+        }
+        ctx.fillStyle = tail;
+        ctx.beginPath();
+        ctx.moveTo(-3, 26);
+        ctx.quadraticCurveTo(-16 + ts, 36, -14 + ts, 50);
+        ctx.lineTo(ts * 0.4, 40);
+        ctx.lineTo(14 + ts, 50);
+        ctx.quadraticCurveTo(16 + ts, 36, 3, 26);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#2c1812';
+        ctx.lineWidth = 1.05;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-3, -44);
+        ctx.quadraticCurveTo(-14, -34, -16, -20);
+        ctx.moveTo(3, -44);
+        ctx.quadraticCurveTo(14, -34, 16, -20);
+        ctx.stroke();
+
+        ctx.fillStyle = '#14110f';
+        ctx.beginPath();
+        ctx.arc(-3.6, -30, 1.55, 0, Math.PI * 2);
+        ctx.arc(3.6, -30, 1.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-3.1, -30.6, 0.5, 0, Math.PI * 2);
+        ctx.arc(4.1, -30.6, 0.5, 0, Math.PI * 2);
         ctx.fill();
     }
 
@@ -845,15 +1496,34 @@ class Koi {
             });
         } else {
             this.trail.forEach((p, i) => {
-                const a = (1 - i / this.trail.length) * 0.12;
+                const a = (1 - i / this.trail.length) * 0.14;
                 ctx.save();
                 ctx.globalAlpha = a;
-                ctx.fillStyle = '#ff6666';
+                ctx.fillStyle = '#d4c4ae';
+                ctx.translate(p.x, p.y);
+                ctx.rotate(this.tilt);
                 ctx.beginPath();
-                ctx.ellipse(p.x, p.y, 5, 10, 0, 0, Math.PI * 2);
+                ctx.moveTo(0, -10);
+                ctx.bezierCurveTo(4, -6, 5, 2, 2, 8);
+                ctx.lineTo(-2, 8);
+                ctx.bezierCurveTo(-5, 2, -4, -6, 0, -10);
                 ctx.fill();
                 ctx.restore();
             });
+        }
+
+        // 跳ね無敵中のリング
+        if (!this.dragonMode && this.haneTimer > 0) {
+            const p = this.haneTimer / CFG.HANE_DUR;
+            const rr = (SPRITE.loaded ? Math.max(SPRITE.drawW, SPRITE.drawH) * 0.42 : 48) * (1.25 - p * 0.25);
+            ctx.save();
+            ctx.globalAlpha = Math.min(0.75, p * 0.9);
+            ctx.strokeStyle = this.invincible ? 'rgba(255,255,210,0.95)' : 'rgba(160,230,255,0.7)';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, rr, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
         }
 
         ctx.save();
@@ -893,9 +1563,6 @@ class Koi {
             const rect = this.getSpriteRect(this.frameIndex);
             const hw = SPRITE.drawW / 2;
             const hh = SPRITE.drawH / 2;
-            const goldTail = !this.dragonMode && this.dragonKi >= 50;
-            ctx.shadowBlur  = goldTail ? 22 : 20;
-            ctx.shadowColor = goldTail ? 'rgba(255,215,0,0.65)' : 'rgba(255,120,80,0.5)';
             ctx.drawImage(
                 SPRITE.img,
                 rect.sx, rect.sy, rect.sw, rect.sh,
@@ -916,21 +1583,22 @@ class Obstacle {
         this.init(forceY);
     }
     init(forceY = null) {
-        this.x    = 50 + Math.random() * (W - 100);
-        this.y    = forceY ?? -(30 + Math.random() * 150);
-        this.size = 16 + Math.random() * 35;
+        this.x    = spawnObstacleX();
+        this.y    = forceY !== null ? forceY : nextSpawnY(this);
+        this.size = 14 + Math.random() * 22;
         this.rot  = Math.random() * Math.PI * 2;
         this.rotSpd = (Math.random()-0.5) * 0.035;
 
-        // Type and movement pattern
+        // Type — 層ごとの出現テーブルに従う
+        const w = currentLayer().weights;
         const r = Math.random();
-        if      (r < 0.4)  { this.type = 'rock'; }
-        else if (r < 0.75) { this.type = 'log';  }
-        else               { this.type = 'whirl'; }
+        if      (r < w.rock)          { this.type = 'rock'; }
+        else if (r < w.rock + w.log)  { this.type = 'log';  }
+        else                          { this.type = 'whirl'; }
 
         const p = Math.random();
         if      (p < 0.5)  { this.pattern = 'straight'; }
-        else if (p < 0.8)  { this.pattern = 'sine'; this.phase = Math.random()*Math.PI*2; this.amp = 30+Math.random()*50; }
+        else if (p < 0.8)  { this.pattern = 'sine'; this.phase = Math.random()*Math.PI*2; this.amp = 16+Math.random()*28; }
         else               { this.pattern = 'zigzag'; this.dir = Math.random()>0.5?1:-1; this.timer = 0; }
 
         this.baseX = this.x;
@@ -976,7 +1644,6 @@ class Obstacle {
             const g = ctx.createRadialGradient(-this.size*.25, -this.size*.25, 0, 0, 0, this.size);
             g.addColorStop(0, '#777'); g.addColorStop(1, '#222');
             ctx.fillStyle = g;
-            ctx.shadowBlur = 6; ctx.shadowColor = 'rgba(0,0,0,.4)';
             ctx.beginPath();
             const pts = 6;
             for (let i = 0; i < pts; i++) {
@@ -988,9 +1655,11 @@ class Obstacle {
             ctx.closePath(); ctx.fill();
 
         } else if (this.type === 'log') {
-            ctx.shadowBlur = 5; ctx.shadowColor = 'rgba(0,0,0,.3)';
-            if (logImageReady && LOG_IMG.complete && LOG_IMG.naturalWidth) {
-                ctx.drawImage(LOG_IMG, -this.size, -this.size * 0.5, this.size * 2, this.size);
+            if (logBaked) {
+                ctx.drawImage(LOG_BAKE, -this.size, -this.size * 0.5, this.size * 2, this.size);
+            } else if (logImageReady && LOG_IMG.complete && LOG_IMG.naturalWidth) {
+                bakeLogSprite();
+                ctx.drawImage(logBaked ? LOG_BAKE : LOG_IMG, -this.size, -this.size * 0.5, this.size * 2, this.size);
             } else {
                 const lg = ctx.createLinearGradient(0,-this.size*.2,0,this.size*.2);
                 lg.addColorStop(0,'#6d4c2a'); lg.addColorStop(1,'#2d1a0a');
@@ -1003,7 +1672,6 @@ class Obstacle {
             }
 
         } else { // whirl
-            ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(0,150,255,.5)';
             for (let i = 3; i > 0; i--) {
                 ctx.strokeStyle = `rgba(0,180,255,${0.12*i})`;
                 ctx.lineWidth   = i * 3;
@@ -1050,19 +1718,24 @@ class Bubble {
     }
     draw() {
         ctx.save();
-        if (this.glow) { ctx.shadowBlur = 15; ctx.shadowColor = '#ffd700'; }
-        else           { ctx.shadowBlur = 8;  ctx.shadowColor = '#7df9ff'; }
-
         ctx.strokeStyle = this.color;
         ctx.lineWidth   = 1.8;
+        ctx.globalAlpha = this.glow ? 0.95 : 0.85;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
         ctx.stroke();
 
+        ctx.globalAlpha = 1;
         ctx.fillStyle = this.glow
-            ? 'rgba(255,215,0,0.1)'
-            : 'rgba(125,249,255,0.08)';
+            ? 'rgba(255,215,0,0.16)'
+            : 'rgba(125,249,255,0.10)';
         ctx.fill();
+        if (this.glow) {
+            ctx.fillStyle = 'rgba(255,215,0,0.12)';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.r * 1.7, 0, Math.PI*2);
+            ctx.fill();
+        }
 
         // Highlight
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -1107,6 +1780,79 @@ class WaterLine {
 }
 
 /* ════════════════════════════════
+   ① 層ごとの舞い散る意匠（桜／笹／紅葉／火の粉）
+   ════════════════════════════════ */
+class Decor {
+    constructor() { this.reset(true); }
+    reset(init) {
+        this.x       = Math.random() * W;
+        this.y       = init ? Math.random() * H : -25 - Math.random() * 90;
+        this.size    = 7 + Math.random() * 10;
+        this.spd     = 0.8 + Math.random() * 1.8;
+        this.sway    = Math.random() * Math.PI * 2;
+        this.swaySpd = 0.015 + Math.random() * 0.03;
+        this.rot     = Math.random() * Math.PI * 2;
+        this.rotSpd  = (Math.random() - 0.5) * 0.05;
+        this.alpha   = 0.28 + Math.random() * 0.5;
+        this.gold    = Math.random() < 0.42;
+        this.flip    = Math.random() < 0.5;
+    }
+    update() {
+        this.sway += this.swaySpd;
+        this.y    += this.spd + CFG.speed * 0.22;
+        this.x    += Math.sin(this.sway) * 0.9;
+        this.rot  += this.rotSpd;
+        if (this.y > H + 40) this.reset(false);
+    }
+    draw(L) {
+        const rgb = L.decorColor;
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rot);
+        ctx.fillStyle = `rgba(${rgb},0.9)`;
+
+        if (L.decor === 'petal') {
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.size * 0.55, this.size, 0, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (L.decor === 'leaf') {
+            if (this.flip) ctx.scale(-1, 1);
+            const ok = window.KoiPlants && KoiPlants.drawSasa(ctx, this.size);
+            if (!ok) {
+                ctx.beginPath();
+                ctx.moveTo(-this.size * 1.4, 0);
+                ctx.quadraticCurveTo(0, -this.size * 0.55, this.size * 1.4, 0);
+                ctx.quadraticCurveTo(0, this.size * 0.55, -this.size * 1.4, 0);
+                ctx.fill();
+            }
+        } else if (L.decor === 'momiji') {
+            const ok = window.KoiPlants && KoiPlants.drawMomiji(ctx, this.size, this.gold);
+            if (!ok) {
+                for (let i = 0; i < 5; i++) {
+                    const a = -Math.PI / 2 + (i / 5) * Math.PI * 1.55 - Math.PI * 0.28;
+                    ctx.save();
+                    ctx.rotate(a);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.quadraticCurveTo(this.size * 0.42, -this.size * 0.45, 0, -this.size);
+                    ctx.quadraticCurveTo(-this.size * 0.42, -this.size * 0.45, 0, 0);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+        } else { // spark
+            ctx.shadowBlur  = 12;
+            ctx.shadowColor = `rgba(${rgb},0.9)`;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+/* ════════════════════════════════
    DRAGON VICTORY ANIMATION
    ════════════════════════════════ */
 let victoryT = 0;
@@ -1116,6 +1862,55 @@ let dragonText = '';
 let nearMissText = '';
 let nearMissTimer = 0;
 let dragonShadowTimer = 0;
+
+// ① 層演出用
+let layerShownIndex  = -1;
+let layerBannerTimer = 0;
+let layerBannerName  = '';
+let layerBannerSub   = '';
+let layerBannerColor = '#7df9ff';
+let lightningTimer   = 0;
+
+function announceLayer(i) {
+    const L = LAYERS[i];
+    layerBannerName  = L.name;
+    layerBannerSub   = L.sub;
+    layerBannerColor = L.color;
+    layerBannerTimer = 110;
+    sfxLayer();
+}
+
+function drawLayerBanner() {
+    if (layerBannerTimer <= 0) return;
+    layerBannerTimer--;
+    const a = layerBannerTimer / 110;
+    const fade = a > 0.75 ? (1 - a) / 0.25 : Math.min(1, a / 0.35);
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+    ctx.textAlign = 'center';
+
+    ctx.font = `bold 34px ${FONT_JP}`;
+    ctx.fillStyle   = layerBannerColor;
+    ctx.shadowBlur  = 0;
+    ctx.shadowColor = layerBannerColor;
+    ctx.fillText(layerBannerName, W / 2, H * 0.2);
+
+    ctx.font = `16px 'Zen Antique', serif`;
+    ctx.globalAlpha *= 0.8;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle  = '#ffffff';
+    ctx.fillText(layerBannerSub, W / 2, H * 0.2 + 28);
+
+    ctx.strokeStyle = layerBannerColor;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha *= 0.5;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 90, H * 0.2 + 44);
+    ctx.lineTo(W / 2 + 90, H * 0.2 + 44);
+    ctx.stroke();
+    ctx.restore();
+}
 
 function addDragonKi(amount) {
     if (!koi || STATE !== 'PLAYING') return;
@@ -1207,7 +2002,7 @@ function drawDragonText() {
     ctx.save();
     ctx.globalAlpha = Math.min(1, a * 1.5);
     ctx.textAlign = 'center';
-    ctx.font = `bold ${34 + (1 - a) * 20}px 'Noto Serif JP', serif`;
+    ctx.font = `bold ${34 + (1 - a) * 20}px ${FONT_JP}`;
     ctx.fillStyle = '#ffd700';
     ctx.shadowBlur = 25;
     ctx.shadowColor = '#ffd700';
@@ -1225,7 +2020,7 @@ function drawNearMissText() {
     ctx.save();
     ctx.globalAlpha = Math.min(1, a * 2);
     ctx.textAlign = 'center';
-    ctx.font = `bold ${26 + (1 - a) * 12}px 'Noto Serif JP', serif`;
+    ctx.font = `bold ${26 + (1 - a) * 12}px ${FONT_JP}`;
     ctx.fillStyle = '#fff8dc';
     ctx.shadowBlur = 18;
     ctx.shadowColor = '#ffd700';
@@ -1312,23 +2107,66 @@ function drawDragon(t) {
    BACKGROUND RENDERING
    ════════════════════════════════ */
 function drawBackground() {
-    // Deep water gradient
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0,   '#001a2e');
-    bg.addColorStop(0.4, '#003d5b');
-    bg.addColorStop(1,   '#005f73');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, W, H);
+    const blend = layerBlend();
+    const A = LAYERS[blend.i], B = LAYERS[blend.next], f = blend.f;
+    const mix3 = (ha, hb) => {
+        const ca = hex2rgb(ha), cb = hex2rgb(hb);
+        return [
+            (ca[0] + (cb[0] - ca[0]) * f) / 255,
+            (ca[1] + (cb[1] - ca[1]) * f) / 255,
+            (ca[2] + (cb[2] - ca[2]) * f) / 255
+        ];
+    };
 
-    // Waterfall streaks（startGame 前のループでも安全に）
-    if (waterLines) {
-        waterLines.forEach(wl => { wl.update(); wl.draw(); });
+    const glWater = window.KoiWater && KoiWater.active;
+    if (glWater) {
+        KoiWater.setPalette(
+            mix3(A.bg[0], B.bg[0]),
+            mix3(A.bg[1], B.bg[1]),
+            mix3(A.bg[2], B.bg[2]),
+            CFG.speed
+        );
+        KoiWater.frame(performance.now() * 0.001, STATE === 'PLAYING', W, H);
+        ctx.clearRect(0, 0, W, H);
+        KoiWater.drawSpray(ctx, W, H);
+    } else {
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0,   mixHex(A.bg[0], B.bg[0], f));
+        bg.addColorStop(0.4, mixHex(A.bg[1], B.bg[1], f));
+        bg.addColorStop(1,   mixHex(A.bg[2], B.bg[2], f));
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+        if (waterLines) {
+            waterLines.forEach(wl => { wl.update(); wl.draw(); });
+        }
+    }
+
+    if (window.KoiPlants) KoiPlants.drawScenery(ctx, W, H, blend, distance);
+
+    // 層の意匠（桜／笹／紅葉／火の粉）
+    if (decors) {
+        const DL = f > 0.5 ? B : A;
+        decors.forEach(d => { d.update(); d.draw(DL); });
+    }
+
+    // 雷雲層の稲光
+    if (blend.i === LAYERS.length - 1 || (f > 0.5 && blend.next === LAYERS.length - 1)) {
+        if (lightningTimer <= 0 && Math.random() < 0.007) lightningTimer = 9;
+    }
+    if (lightningTimer > 0) {
+        lightningTimer--;
+        ctx.save();
+        ctx.globalAlpha = (lightningTimer / 9) * 0.22;
+        ctx.fillStyle = '#e6dcff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
     }
 
     // Mist at bottom
+    const mistRGB = f > 0.5 ? B.mist : A.mist;
     const mist = ctx.createLinearGradient(0, H*0.75, 0, H);
-    mist.addColorStop(0, 'rgba(180,230,255,0)');
-    mist.addColorStop(1, 'rgba(180,230,255,0.1)');
+    mist.addColorStop(0, `rgba(${mistRGB},0)`);
+    mist.addColorStop(1, `rgba(${mistRGB},0.1)`);
     ctx.fillStyle = mist;
     ctx.fillRect(0, H*0.75, W, H*0.25);
 
@@ -1349,7 +2187,7 @@ function drawBackground() {
         ctx.moveTo(gx-gw-8, gy); ctx.lineTo(gx+gw+8, gy);
         ctx.stroke();
         ctx.fillStyle   = '#ffd700';
-        ctx.font        = `bold ${12 + gateAlpha*6}px 'Noto Serif JP', serif`;
+        ctx.font        = `bold ${12 + gateAlpha*6}px ${FONT_JP}`;
         ctx.textAlign   = 'center';
         ctx.shadowBlur  = 12;
         ctx.fillText('龍門', gx, gy - 8);
@@ -1398,7 +2236,25 @@ function initGame() {
     victoryT    = 0;
     particles   = [];
 
-    koi       = new Koi();
+    if (!koi) koi = new Koi();
+    else {
+        koi.x = W / 2;
+        koi.y = H * 0.78;
+        koi.targetX = koi.x;
+        koi.energy = 100;
+        koi.trail = [];
+        koi.dragonKi = 0;
+        koi.dragonMode = false;
+        koi.dragonTimer = 0;
+        koi.haneTimer = 0;
+        koi.haneCd = 0;
+        koi.haneCombo = 0;
+        koi.tilt = 0;
+        koi.frameIndex = 0;
+        koi.radius = SPRITE.loaded
+            ? Math.min(SPRITE.drawW, SPRITE.drawH) * 0.22
+            : 16;
+    }
 
     dragonFlash = 0;
     dragonTextTimer = 0;
@@ -1408,29 +2264,63 @@ function initGame() {
     dragonShadowTimer = 0;
     updateDragonHUD();
 
-    obstacles = Array.from({ length: 5 }, () => {
-        const o = new Obstacle();
-        o.y = -80 - Math.random() * H*0.8;
-        return o;
-    });
+    const gap = obstacleMinGap();
+    const firstY = -(Math.max(H * 0.34, 220));
+    obstacles = [];
+    const lanes = [W * 0.2, W * 0.8, W * 0.18];
+    for (let i = 0; i < 3; i++) {
+        const o = new Obstacle(firstY - i * gap);
+        o.x = lanes[i % lanes.length];
+        o.baseX = o.x;
+        obstacles.push(o);
+    }
     bubbles     = Array.from({ length: 3 }, () => new Bubble());
-    waterLines  = Array.from({ length: 30 }, () => new WaterLine());
+    if (!window.KoiWater || !KoiWater.active) {
+        if (!waterLines || waterLines.length !== 14) {
+            waterLines  = Array.from({ length: 14 }, () => new WaterLine());
+        }
+    } else {
+        waterLines = waterLines || [];
+    }
+    if (!decors || decors.length !== 12) {
+        decors      = Array.from({ length: 12 }, () => new Decor());
+    }
+
+    layerShownIndex  = 0;
+    layerBannerTimer = 0;
+    lightningTimer   = 0;
+    updateHaneBtn();
 }
 
+let startArmed = false;
+let fontWarmed = false;
 function startGame() {
-    unlockWebAudio();
+    if (startArmed || STATE === 'PLAYING') return;
+    startArmed = true;
+    document.body.classList.remove('start-idle');
     startScreen.classList.add('hidden');
     goScreen   .classList.add('hidden');
     vicScreen  .classList.add('hidden');
-    initGame();
-    STATE = 'PLAYING';
+    requestAnimationFrame(() => {
+        unlockWebAudio();
+        if (window.KoiWater) KoiWater.startAudio();
+        bakeLogSprite();
+        initGame();
+        requestAnimationFrame(() => {
+            STATE = 'PLAYING';
+            startArmed = false;
+        });
+    });
 }
 
 function endGame(victory) {
     if (STATE !== 'PLAYING') return;
     STATE = victory ? 'VICTORY' : 'GAMEOVER';
+    layerBannerTimer = 0;
 
     if (koi) {
+        koi.haneTimer = 0;
+        koi.haneCd = 0;
         koi.dragonMode = false;
         koi.dragonTimer = 0;
         koi.dragonKi = 0;
@@ -1504,6 +2394,68 @@ canvas.addEventListener('pointermove', e => {
 ['pointerup', 'pointercancel'].forEach(ev => {
     canvas.addEventListener(ev, () => { canvasPointerActive = false; }, { passive: true });
 });
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    unlockWebAudio();
+    if (STATE === 'PLAYING' && e.touches.length > 0) {
+        setTarget(e.touches[0].clientX);
+    }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (STATE === 'PLAYING' && e.touches.length > 0) {
+        setTarget(e.touches[0].clientX);
+    }
+}, { passive: false });
+
+// ── ② 跳ね 入力 ──
+function doHane() {
+    unlockWebAudio();
+    if (STATE === 'PLAYING' && koi && koi.tryHane()) {
+        if (navigator.vibrate) navigator.vibrate(15);
+    }
+}
+let lastPlayTapAt = 0;
+let lastPlayTapX = 0;
+let lastPlayTapY = 0;
+function isHaneSkipTarget(t) {
+    if (!t || !t.closest) return false;
+    return !!(t.closest('#hane-btn') || t.closest('#mute-btn') || t.closest('.btn'));
+}
+function maybeDoubleTapHaneAt(x, y) {
+    if (STATE !== 'PLAYING' || !koi) return;
+    const now = performance.now();
+    const dt = now - lastPlayTapAt;
+    const dist = Math.hypot(x - lastPlayTapX, y - lastPlayTapY);
+    if (dt > 40 && dt <= 450 && dist < 140) {
+        doHane();
+        lastPlayTapAt = 0;
+        return;
+    }
+    lastPlayTapAt = now;
+    lastPlayTapX = x;
+    lastPlayTapY = y;
+}
+document.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch') return;
+    if (isHaneSkipTarget(e.target)) return;
+    maybeDoubleTapHaneAt(e.clientX, e.clientY);
+}, { passive: true });
+window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === ' ') {
+        e.preventDefault();
+        doHane();
+    }
+});
+
+function updateHaneBtn() {
+    if (!koi || STATE !== 'PLAYING') { haneBtn.className = 'cool'; return; }
+    const ready = koi.haneCd <= 0 && koi.haneTimer <= 0 &&
+                  (koi.dragonMode || koi.energy >= CFG.HANE_COST + 2);
+    let cls = ready ? '' : 'cool';
+    if (ready && koi.dragonMode) cls = 'free';
+    haneBtn.className = cls;
+}
 
 /* ════════════════════════════════
    HUD UPDATE
@@ -1515,6 +2467,7 @@ function updateHUD() {
     diffBadge.textContent   = dl.text;
     diffBadge.style.color   = dl.color;
     diffBadge.style.borderColor = dl.color;
+    updateHaneBtn();
 }
 
 /* ════════════════════════════════
@@ -1532,13 +2485,20 @@ function loop() {
         distance += 0.04;
         updateHUD();
 
+        // ① 層の切り替わり演出
+        const li = layerIndexAt(distance);
+        if (li !== layerShownIndex) {
+            layerShownIndex = li;
+            announceLayer(li);
+        }
+
         if (distance >= CFG.MAX_DIST) { endGame(true); return; }
 
         // Dynamic obstacle spawning
-        if (Math.random() < CFG.spawnRate && obstacles.length < 12) {
+        if (Math.random() < CFG.spawnRate && obstacles.length < CFG.MAX_OBSTACLES) {
             obstacles.push(new Obstacle());
         }
-        while (obstacles.length > 12) obstacles.shift();
+        while (obstacles.length > CFG.MAX_OBSTACLES) obstacles.shift();
 
         // Update & draw bubbles
         bubbles.forEach(b => {
@@ -1593,10 +2553,27 @@ function loop() {
                     } catch (e) {}
 
                     o.init();
+                } else if (koi.invincible) {
+                    // ② 跳ねで水面ごと蹴り抜ける
+                    spawnBurst(o.x, o.y, 18, {
+                        vx: undefined,
+                        vy: undefined,
+                        r: 3,
+                        decay: 0.03,
+                        color: 'rgba(220,250,255,0.95)',
+                        glow: true,
+                        gravity: 0.05
+                    });
+                    koi.haneCombo++;
+                    addDragonKi(CFG.HANE_KI);
+                    nearMissText = koi.haneCombo >= 2 ? '二段抜け！' : '水面蹴り！';
+                    nearMissTimer = 40;
+                    try { playTone(700, 'triangle', 0.12, 0.09); } catch (e) {}
+                    o.init();
                 } else {
                     endGame(false);
                 }
-            } else if (!koi.dragonMode && o.nearMissReady && o.nearMisses(koi)) {
+            } else if (!koi.dragonMode && !koi.invincible && o.nearMissReady && o.nearMisses(koi)) {
                 o.nearMissReady = false;
                 koi.energy = Math.min(100, koi.energy + 4);
                 addDragonKi(CFG.DRAGON_NEAR_MISS);
@@ -1619,6 +2596,16 @@ function loop() {
         koi.update();
         koi.draw();
 
+    } else if (STATE === 'START') {
+        bakeLogSprite();
+        if (!fontWarmed) {
+            ctx.save();
+            ctx.globalAlpha = 0.001;
+            ctx.font = `bold 34px ${FONT_JP}`;
+            ctx.fillText('里の川', -400, -400);
+            ctx.restore();
+            fontWarmed = true;
+        }
     } else if (STATE === 'GAMEOVER') {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
         ctx.fillRect(0, 0, W, H);
@@ -1639,6 +2626,7 @@ function loop() {
     limitParticles();
 
     drawDragonFlash();
+    drawLayerBanner();
     drawDragonText();
     drawNearMissText();
     } catch (e) {
@@ -1648,9 +2636,23 @@ function loop() {
 
 // ── Boot ──
 document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) unlockWebAudio();
+    if (document.hidden) {
+        pauseBGM();
+        return;
+    }
+    unlockWebAudio();
+    if (bgmWanted) startBGM();
 });
-document.addEventListener('dblclick', e => { e.preventDefault(); }, { passive: false });
+window.addEventListener('pageshow', () => {
+    unlockWebAudio();
+    if (bgmWanted && !document.hidden) startBGM();
+});
+document.addEventListener('selectstart', e => e.preventDefault());
+document.addEventListener('dragstart', e => e.preventDefault());
+document.addEventListener('dblclick', e => {
+    e.preventDefault();
+    if (STATE === 'PLAYING') doHane();
+}, { passive: false });
 document.addEventListener('contextmenu', e => { e.preventDefault(); });
 let lastIOSQuickTap = 0;
 document.addEventListener('touchstart', e => {
@@ -1660,14 +2662,21 @@ document.addEventListener('touchstart', e => {
 }, { passive: false });
 let lastTouchEnd = 0;
 document.addEventListener('touchend', e => {
-    const now = Date.now();
-    if (now - lastTouchEnd <= 300) e.preventDefault();
-    lastTouchEnd = now;
-}, false);
-/* iOS Safari: document 全体の touchmove preventDefault が pointer 系と競合することがあるため無効化。
- * スクロール抑制は CSS（touch-action / overflow）で対応済み。 */
-// document.addEventListener('touchmove', e => { e.preventDefault(); }, { passive: false });
+    if (e.cancelable && lastTouchEnd && (Date.now() - lastTouchEnd) <= 300) {
+        e.preventDefault();
+    }
+    lastTouchEnd = Date.now();
+    if (isHaneSkipTarget(e.target)) return;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (t) maybeDoubleTapHaneAt(t.clientX, t.clientY);
+}, { capture: true, passive: false });
+/* iOS Safari: 画面バウンス防止。スクロール領域だけ除外。 */
+document.addEventListener('touchmove', e => {
+    if (e.target && e.target.closest && e.target.closest('[data-scrollable]')) return;
+    if (e.cancelable) e.preventDefault();
+}, { passive: false });
 
+initGame();
 loop();
 </script>
 </body>
